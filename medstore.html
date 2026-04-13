@@ -456,14 +456,10 @@
   .sales-chart { display:flex; align-items:flex-end; gap:8px; height:80px; }
   .chart-bar { flex:1; background:linear-gradient(180deg,var(--blue-light),var(--blue)); border-radius:4px 4px 0 0; opacity:.8; }
   
-  /* real slide in detail page gets full height */
+  /* real slide in detail page fills correctly */
   .detail-thumb .real-slide-wrap {
     border-radius: var(--radius) !important;
     width: 100% !important; height: 100% !important;
-  }
-  .detail-thumb .real-slide-wrap iframe {
-    width: 160% !important; height: 160% !important;
-    transform: scale(0.625) !important; transform-origin: 0 0 !important;
   }
 
   .notification-dot { width:8px; height:8px; border-radius:50%; background:var(--red); display:inline-block; margin-left:4px; vertical-align:middle; }
@@ -1181,96 +1177,145 @@ function buildPreview(p, cat) {
   return buildSlidePreview(p);
 }
 
-/* ── REAL GOOGLE DRIVE SLIDESHOW PREVIEW (all categories) ─────────── */
-function getDriveEmbedUrl(link) {
+/* ── REAL GOOGLE DRIVE IMAGE SLIDESHOW (works on GitHub Pages) ──────
+   Uses /thumbnail?id=FILE_ID&sz=w800 — public image URL, no iframe,
+   no X-Frame-Options block, works everywhere.
+─────────────────────────────────────────────────────────────────── */
+
+function getDriveFileId(link) {
   const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (!m) return link;
-  return `https://drive.google.com/file/d/${m[1]}/preview`;
+  return m ? m[1] : null;
+}
+
+// Google Drive thumbnail URL — works without login for shared files
+function driveThumbnail(fileId, page) {
+  // page param shifts which thumbnail is served (Drive auto-generates per page)
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800&page=${page}`;
 }
 
 function buildRealSlidePreview(p) {
-  const embedUrl = getDriveEmbedUrl(p.previewLink);
+  const fileId = getDriveFileId(p.previewLink);
   const sid = 'rsp_' + p.id;
 
-  // Per-category customisation
+  // Per-category style
   const catMeta = {
-    slides:   { icon:'📊', badge:'📄 Slide Preview', lockIcon:'🔒', ctaGrad:'linear-gradient(135deg,#0B1F3A,#1565C0)', lockBg:'rgba(11,31,58,.75)' },
-    books:    { icon:'📚', badge:'📖 Book Preview',  lockIcon:'📚', ctaGrad:'linear-gradient(135deg,#1B5E20,#2E7D32)', lockBg:'rgba(27,94,32,.78)' },
-    videos:   { icon:'🎬', badge:'▶ Video Preview',  lockIcon:'🎬', ctaGrad:'linear-gradient(135deg,#1a1a2e,#0f3460)', lockBg:'rgba(15,52,96,.78)' },
-    podcasts: { icon:'🎙️', badge:'🎧 Podcast Preview',lockIcon:'🎙️', ctaGrad:'linear-gradient(135deg,#2D1B69,#11998e)', lockBg:'rgba(45,27,105,.78)' },
+    slides:   { badge:'📄 Preview', lockIcon:'🔒', ctaGrad:'linear-gradient(135deg,#0B1F3A,#1565C0)', lockBg:'rgba(11,31,58,.82)', accent:'#1E88E5' },
+    books:    { badge:'📖 Preview', lockIcon:'📚', ctaGrad:'linear-gradient(135deg,#1B5E20,#388E3C)', lockBg:'rgba(27,94,32,.82)', accent:'#43A047' },
+    videos:   { badge:'▶ Preview',  lockIcon:'🎬', ctaGrad:'linear-gradient(135deg,#0f1923,#1a3a5c)', lockBg:'rgba(10,25,47,.82)', accent:'#1E88E5' },
+    podcasts: { badge:'🎧 Preview', lockIcon:'🎙️', ctaGrad:'linear-gradient(135deg,#2D1B69,#0d7377)', lockBg:'rgba(45,27,105,.82)', accent:'#26A69A' },
   };
   const m = catMeta[p.category] || catMeta.slides;
 
+  // Slides: page 1, page 2 — if Drive can't serve page 2 it falls back to page 1
+  // We show 2 real images + 1 locked CTA = 3 steps total
+  const img1 = fileId ? driveThumbnail(fileId, 1) : '';
+  const img2 = fileId ? driveThumbnail(fileId, 2) : '';
+
   return `
-    <div class="real-slide-wrap" id="${sid}"
-      style="position:relative;width:100%;height:100%;background:#111827;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0;">
-
-      <!-- actual Google Drive iframe -->
-      <iframe
-        id="${sid}_frame"
-        src="${embedUrl}"
-        style="width:140%;height:140%;border:none;transform:scale(0.714);transform-origin:0 0;pointer-events:none;"
-        allow="autoplay"
-        loading="lazy"
-      ></iframe>
-
-      <!-- top fade -->
-      <div style="position:absolute;top:0;left:0;right:0;height:32px;
-        background:linear-gradient(180deg,rgba(17,24,39,.65),transparent);
-        pointer-events:none;z-index:3;"></div>
-
-      <!-- Page 3: blurred lock / CTA overlay -->
-      <div id="${sid}_lock" style="
-        display:none; position:absolute; inset:0; z-index:8;
-        background:${m.lockBg}; backdrop-filter:blur(12px) saturate(1.4);
-        flex-direction:column; align-items:center; justify-content:center;
-        gap:10px; text-align:center; padding:22px;
+    <div class="real-slide-wrap" id="${sid}" style="
+      position:relative;width:100%;height:100%;
+      background:#0f1923;overflow:hidden;
+      border-radius:var(--radius) var(--radius) 0 0;
+      cursor:pointer;
+    ">
+      <!-- IMAGE SLIDES -->
+      <!-- Slide 1: real page 1 image -->
+      <div id="${sid}_s0" class="rsp-slide rsp-slide-active" style="
+        position:absolute;inset:0;z-index:2;
+        transition:opacity .6s ease, transform .6s ease;
       ">
-        <div style="font-size:2.4rem;filter:drop-shadow(0 2px 8px rgba(0,0,0,.4));">${m.lockIcon}</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;color:#fff;line-height:1.3;">
-          Get Full Access
+        ${fileId ? `
+          <img src="${img1}"
+            style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;"
+            onerror="this.parentElement.style.background='linear-gradient(135deg,#0B1F3A,#1565C0)';this.style.display='none';this.parentElement.querySelector('.rsp-fallback').style.display='flex';"
+          >
+          <div class="rsp-fallback" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#fff;">
+            <div style="font-size:2.5rem;">${m.badge.split(' ')[0]}</div>
+            <div style="font-size:.8rem;opacity:.7;">Loading preview…</div>
+          </div>
+        ` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#0B1F3A,#1565C0);display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;">📊</div>`}
+        <!-- top tag -->
+        <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,.5);color:#fff;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:50px;backdrop-filter:blur(6px);letter-spacing:.04em;">
+          Page 1
         </div>
-        <div style="font-size:.72rem;color:rgba(255,255,255,.72);line-height:1.5;">
-          ${p.title.substring(0,40)}${p.title.length>40?'…':''}<br>
-          <span style="font-weight:600;color:rgba(255,255,255,.9);">${(p.features||[]).length} resources included</span>
+      </div>
+
+      <!-- Slide 2: real page 2 image -->
+      <div id="${sid}_s1" class="rsp-slide" style="
+        position:absolute;inset:0;z-index:1;
+        opacity:0;transform:translateX(40px);
+        transition:opacity .6s ease, transform .6s ease;
+      ">
+        ${fileId ? `
+          <img src="${img2}"
+            style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;"
+            onerror="this.style.display='none';this.parentElement.style.background='linear-gradient(135deg,#1565C0,#00796B)';"
+          >
+        ` : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,#1565C0,#00796B);display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;">📋</div>`}
+        <div style="position:absolute;top:12px;left:12px;background:rgba(0,0,0,.5);color:#fff;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:50px;backdrop-filter:blur(6px);letter-spacing:.04em;">
+          Page 2
         </div>
-        <div onclick="event.stopPropagation();showProduct(${p.id})" style="
-          margin-top:6px; background:${m.ctaGrad};
-          border:1px solid rgba(255,255,255,.25);
-          color:#fff; font-size:.8rem; font-weight:700;
-          padding:9px 22px; border-radius:50px; cursor:pointer;
-          box-shadow:0 4px 16px rgba(0,0,0,.35);
-          transition:all .2s;
-        " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-          Buy Now — $${p.price}
+      </div>
+
+      <!-- Slide 3: LOCKED CTA overlay -->
+      <div id="${sid}_s2" class="rsp-slide" style="
+        position:absolute;inset:0;z-index:1;
+        opacity:0;transform:translateX(40px);
+        transition:opacity .6s ease, transform .6s ease;
+        background:${m.lockBg};backdrop-filter:blur(0px);
+      ">
+        <!-- blurred bg from slide 1 -->
+        ${fileId ? `<img src="${img1}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(14px) brightness(.45) saturate(1.2);transform:scale(1.1);">` : ''}
+        <!-- content -->
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;z-index:2;">
+          <div style="font-size:2.2rem;filter:drop-shadow(0 3px 10px rgba(0,0,0,.5));">${m.lockIcon}</div>
+          <div style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;color:#fff;line-height:1.3;text-shadow:0 2px 8px rgba(0,0,0,.4);">
+            Get Full Access
+          </div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.78);line-height:1.55;text-shadow:0 1px 4px rgba(0,0,0,.4);">
+            ${p.title.substring(0,38)}${p.title.length>38?'…':''}<br>
+            <strong style="color:rgba(255,255,255,.95);">${(p.features||[]).length} items included</strong>
+          </div>
+          <div onclick="event.stopPropagation();showProduct(${p.id})" style="
+            margin-top:4px;
+            background:${m.ctaGrad};
+            border:1.5px solid rgba(255,255,255,.3);
+            color:#fff;font-size:.78rem;font-weight:700;
+            padding:9px 22px;border-radius:50px;cursor:pointer;
+            box-shadow:0 4px 18px rgba(0,0,0,.4);
+            transition:transform .2s;
+          " onmouseover="this.style.transform='scale(1.06)'" onmouseout="this.style.transform='scale(1)'">
+            🛒 Buy Now — $${p.price}
+          </div>
+          <div style="font-size:.62rem;color:rgba(255,255,255,.45);">Preview ends here · Full file after purchase</div>
         </div>
       </div>
 
       <!-- top-right badge -->
-      <div class="preview-label" style="z-index:10;">${m.badge}</div>
+      <div class="preview-label" style="z-index:15;">${m.badge}</div>
 
-      <!-- prev arrow -->
+      <!-- ‹ prev arrow -->
       <button id="${sid}_prev" onclick="event.stopPropagation();rspGo('${sid}',-1)" style="
-        position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:9;
+        position:absolute;left:8px;top:50%;transform:translateY(-50%);z-index:12;
         width:30px;height:30px;border-radius:50%;
-        background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);
-        color:#fff;font-size:1rem;cursor:pointer;
+        background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.35);
+        color:#fff;font-size:1.1rem;cursor:pointer;
         display:flex;align-items:center;justify-content:center;
         backdrop-filter:blur(4px);transition:all .2s;opacity:0;
       ">‹</button>
 
-      <!-- next arrow -->
+      <!-- › next arrow -->
       <button id="${sid}_next" onclick="event.stopPropagation();rspGo('${sid}',1)" style="
-        position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:9;
+        position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:12;
         width:30px;height:30px;border-radius:50%;
-        background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);
-        color:#fff;font-size:1rem;cursor:pointer;
+        background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.35);
+        color:#fff;font-size:1.1rem;cursor:pointer;
         display:flex;align-items:center;justify-content:center;
         backdrop-filter:blur(4px);transition:all .2s;
       ">›</button>
 
       <!-- dot indicators -->
-      <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:10;">
+      <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:5px;z-index:12;">
         <div class="slide-dot active" id="${sid}_d0"></div>
         <div class="slide-dot" id="${sid}_d1"></div>
         <div class="slide-dot" id="${sid}_d2"></div>
@@ -1278,55 +1323,65 @@ function buildRealSlidePreview(p) {
 
       <!-- page counter -->
       <div id="${sid}_counter" style="
-        position:absolute;bottom:10px;right:12px;
-        font-size:.65rem;font-weight:700;color:rgba(255,255,255,.65);
-        z-index:10;background:rgba(0,0,0,.35);padding:2px 8px;
-        border-radius:50px;backdrop-filter:blur(4px);
+        position:absolute;bottom:10px;right:10px;z-index:12;
+        font-size:.62rem;font-weight:700;color:rgba(255,255,255,.7);
+        background:rgba(0,0,0,.4);padding:2px 8px;border-radius:50px;
+        backdrop-filter:blur(4px);
       ">1 / 3</div>
     </div>`;
 }
 
-const rspState = {}; // sid -> { current, embedUrl, timer }
+const rspState = {};
 
 function rspInit(sid) {
-  if (rspState[sid]) return; // already inited
+  if (rspState[sid]) return;
   const wrap = document.getElementById(sid);
   if (!wrap) return;
-  const frame = document.getElementById(sid+'_frame');
-  if (!frame) return;
-  const embedUrl = frame.src.split('#')[0].split('?')[0];
-  rspState[sid] = { current: 0, embedUrl, timer: null };
+  rspState[sid] = { current: 0, timer: null };
 
-  // show prev arrow on hover
   const prevBtn = document.getElementById(sid+'_prev');
   wrap.addEventListener('mouseenter', ()=>{ if(prevBtn) prevBtn.style.opacity='1'; });
   wrap.addEventListener('mouseleave', ()=>{ if(prevBtn) prevBtn.style.opacity='0'; });
 
-  // start auto-advance
   rspState[sid].timer = setInterval(()=> rspGo(sid, 1), 3200);
 }
 
-// init all real-slide previews currently in DOM
 function initAllRSP() {
-  document.querySelectorAll('.real-slide-wrap').forEach(el=>{
-    rspInit(el.id);
-  });
+  document.querySelectorAll('.real-slide-wrap').forEach(el => rspInit(el.id));
 }
 
 function rspGo(sid, dir) {
   const state = rspState[sid];
   if (!state) return;
-  const frame   = document.getElementById(sid+'_frame');
-  const lock    = document.getElementById(sid+'_lock');
-  const counter = document.getElementById(sid+'_counter');
-  if (!frame) return;
 
-  // clear existing timer
   if (state.timer) { clearInterval(state.timer); clearTimeout(state.timer); state.timer = null; }
 
   const total = 3;
+  const prev = state.current;
   state.current = (state.current + dir + total) % total;
   const cur = state.current;
+
+  // animate out previous slide
+  const prevSlide = document.getElementById(sid+'_s'+prev);
+  const curSlide  = document.getElementById(sid+'_s'+cur);
+  const counter   = document.getElementById(sid+'_counter');
+
+  if (prevSlide) {
+    prevSlide.style.opacity = '0';
+    prevSlide.style.transform = dir > 0 ? 'translateX(-40px)' : 'translateX(40px)';
+    prevSlide.style.zIndex = '1';
+  }
+  if (curSlide) {
+    curSlide.style.transform = dir > 0 ? 'translateX(40px)' : 'translateX(-40px)';
+    curSlide.style.zIndex = '2';
+    // trigger reflow then animate in
+    requestAnimationFrame(()=>{
+      requestAnimationFrame(()=>{
+        curSlide.style.opacity = '1';
+        curSlide.style.transform = 'translateX(0)';
+      });
+    });
+  }
 
   // update dots
   for (let i = 0; i < total; i++) {
@@ -1336,15 +1391,10 @@ function rspGo(sid, dir) {
   if (counter) counter.textContent = `${cur+1} / ${total}`;
 
   if (cur === 2) {
-    // show blurred CTA lock overlay
-    lock.style.display = 'flex';
-    // loop back after pause
-    state.timer = setTimeout(()=>{ state.current = -1; rspGo(sid, 1); }, 4500);
+    // on CTA slide, loop back after pause
+    state.timer = setTimeout(()=>{ state.current = total - 1; rspGo(sid, 1); }, 4800);
   } else {
-    lock.style.display = 'none';
-    // Reload iframe with page hash
-    frame.src = state.embedUrl + '#page=' + (cur + 1);
-    state.timer = setInterval(()=> rspGo(sid, 1), 3400);
+    state.timer = setInterval(()=> rspGo(sid, 1), 3200);
   }
 }
 
